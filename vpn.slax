@@ -1,0 +1,687 @@
+version 1.1;
+
+ns junos = "http://xml.juniper.net/junos/*/junos";
+ns xnm = "http://xml.juniper.net/xnm/1.1/xnm";
+ns jcs = "http://xml.juniper.net/junos/commit-scripts/1.0";
+ns func extension = "http://exslt.org/functions";
+ns teo extension = "http://xml.teo.earth/junos";
+
+
+import "../import/junos.xsl";
+
+param $tunnel-interface = "st0";       /* Tunnel interface */
+param $external-interface = "reth0.50"; /* External Interface */
+param $unit-base = 64;                 /* Tunnel interface starting unit for B2B tunnels */
+param $unit-max = 128;                 /* Tunnel interface unit threshold for B2B tunnels */
+param $type = "client";                /* VPN type. client/vendor/self */
+param $security-zone = "cli";
+param $name;                           /* VPN name */
+param $peer-address;                   /* Peer gateway address */ 
+param $mode = "main";                           /* Mode: Main */
+param $local-ip;                       /* Local Proxy ID */
+param $remote-ip;                      /* Remote Proxy ID */
+param $ike-proposal-set = "compatible";
+param $ipsec-proposal-set = "compatible";
+param $pre-shared-key;
+param $ike-authentication;
+param $ike-method;
+param $ike-encryption;
+param $dh-group;
+param $ike-lifetime;
+param $ipsec-protocol;
+param $ipsec-install-interval = 1;
+param $ipsec-authentication;
+param $ipsec-encryption;
+param $ipsec-lifetime;
+param $ipsec-lifesize;
+param $pfs-group;
+param $idle-time;
+param $no-anti-replay;
+
+var $load-action="merge";
+
+var $router-import-policy = "cli-vr-imp";
+var $virtual-router = "cli-vr";
+
+var $ike-proposal-def := {
+  <authentication-algorithm default=true > {
+    <name> "sha1";
+  } 
+  <authentication-algorithm> {
+    <name> "md5" ;
+  }
+  <authentication-algorithm> {
+    <name> "sha-256" ;
+  }
+  <authentication-algorithm> {
+    <name> "sha-384" ;
+  }
+  <authentication-method default=true > { 
+    <name> "pre-shared-key"; 
+  }
+  <authentication-method> { 
+    <name> "dsa-signatures"; 
+  }
+  <authentication-method> { 
+    <name> "ecdsa-signatures-256"; 
+  }
+  <authentication-method> { 
+    <name> "ecdsa-signatures-384"; 
+  }
+  <authentication-method> { 
+    <name> "rsa-signatures"; 
+  }
+  <encryption-algorithm default=true > {
+    <name> "3des-cbc"; 
+  }
+  <encryption-algorithm> {
+    <name> "aes-128-cbc"; 
+  }
+  <encryption-algorithm> {
+    <name> "aes-192-cbc"; 
+  }
+  <encryption-algorithm> {
+    <name> "aes-256-cbc"; 
+  }
+  <encryption-algorithm> {
+    <name> "des-cbc"; 
+  }
+  <dh-group default=true> { 
+    <name> "group2";
+  } 
+  <dh-group> { 
+    <name> "group1";
+  } 
+  <dh-group> { 
+    <name> "group14";
+  } 
+  <dh-group> { 
+    <name> "group19";
+  } 
+  <dh-group> { 
+    <name> "group20";
+  } 
+  <dh-group> { 
+    <name> "group24";
+  } 
+  <dh-group> { 
+    <name> "group5";
+  } 
+  <lifetime-seconds> "28800"; 
+}
+var $ipsec-proposal-def := {
+  <protocol default=true> {
+    <name> "esp";
+  }
+  <protocol> {
+    <name> "ah";
+  }
+  <authentication-algorithm default=true> {
+    <name> "hmac-sha1-96";
+  }
+  <authentication-algorithm> {
+    <name> "hmac-md5-96";
+  }
+  <authentication-algorithm> {
+    <name> "hmac-sha-256-128";
+  }
+  <authentication-algorithm> {
+    <name> "hmac-sha-256-96";
+  }
+  <encryption-algorithm default=true> {
+    <name> "3des-cbc";
+  }
+  <encryption-algorithm> {
+    <name> "aes-128-cbc";
+  }
+  <encryption-algorithm> {
+    <name> "aes-128-gcm";
+  }
+  <encryption-algorithm> {
+    <name> "aes-192-cbc";
+  }
+  <encryption-algorithm> {
+    <name> "aes-192-gcm";
+  }
+  <encryption-algorithm> {
+    <name> "aes-256-cbc";
+  }
+  <encryption-algorithm> {
+    <name> "aes-256-gcm";
+  }
+  <encryption-algorithm> {
+    <name> "des-cbc";
+  }
+  <lifetime-seconds default=true> {
+    <name> "28800";
+  }
+  <lifetime-kilobytes default=true> {
+    <name> "204800";
+  }
+  <install-interval> "1";
+}
+
+var $arguments = {
+  <argument> {
+    <name> 'dh-group';
+    <description> 'Diffie Helman Group';
+  }
+  <argument> {
+    <name> 'external-interface';
+    <description> 'External interface';
+  }
+  <argument> {
+    <name> 'ike-authentication';
+    <description> 'IKE authentication algorithm';
+  }
+  <argument> {
+    <name> 'ike-encryption';
+    <description> 'IKE encryption algorithm';
+  }
+  <argument> {
+    <name> 'ike-method';
+    <description> 'IKE authentication method';
+  }
+  <argument> {
+    <name> 'ike-lifetime';
+    <description> 'IKE lifetime';
+  }
+  <argument> {
+    <name> 'ipsec-authentication';
+    <description> 'IPSEC authentication algorithm';
+  }
+  <argument> {
+    <name> 'ipsec-encryption';
+    <description> 'IPSEC encryption algorithm';
+  }
+  <argument> {
+    <name> 'ipsec-lifesize';
+    <description> 'IPSEC lifesize in kilobytes';
+  }
+  <argument> {
+    <name> 'ipsec-lifetime';
+    <description> 'IPSEC lifetime';
+  }
+  <argument> {
+    <name> 'ipsec-protocol';
+    <description> 'IPSEC Protocol; default ESP';
+  }
+  <argument> {
+    <name> 'pfs-group';
+    <description> 'Perfect Forwarding Secrecy group';
+  }
+  <argument> {
+    <name> 'no-anti-replay';
+    <description> 'Disable anti-replay';
+  }
+  <argument> {
+    <name> 'local-ip';
+    <description> 'Local proxy address prefix';
+  }
+  <argument> {
+    <name> 'mode';
+    <description> 'IKE Mode. Default: Main';
+  }
+  <argument> {
+    <name> 'name';
+    <description> 'Name of VPN. eg. VZW';
+  }
+  <argument> {
+    <name> 'peer-address';
+    <description> 'Peer gateway address';
+  }
+  <argument> {
+    <name> 'pre-shared-key';
+    <description> 'Pre-shared Key';
+  }
+  <argument> {
+    <name> 'remote-ip';
+    <description> 'Remote proxy address prefix';
+  }
+  <argument> {
+    <name> 'security-zone';
+    <description> 'Security zone for tunnel interface';
+  }
+  <argument> {
+    <name> 'tunnel-interface';
+    <description> 'Tunnel interface. Default: st0' ;
+  }
+  <argument> {
+    <name> 'type';
+    <description> 'Must be client, vendor or self';
+  }
+}
+
+var $ike-params := {
+  <mode> $mode;
+  <proposal-set> $ike-proposal-set;
+  <pre-shared-key> $pre-shared-key;
+  <peer-address> $peer-address;
+  <external-interface> $external-interface;
+  <proposal> {
+    if(not(jcs:empty($ike-authentication))) { <authentication-algorithm> $ike-authentication; }
+    if(not(jcs:empty($ike-method))) { <authentication-method> $ike-method; }
+    if(not(jcs:empty($ike-encryption))) { <encryption-algorithm> $ike-encryption; }
+    if(not(jcs:empty($ike-lifetime))) { <lifetime-seconds> $ike-lifetime; }
+    if(not(jcs:empty($dh-group))) { <dh-group> $dh-group; }
+  }
+}
+
+var $ipsec-params := {
+  <proposal-set> $ipsec-proposal-set;
+  <install-interval> $ipsec-install-interval;
+  <idle-time> "60";
+  <proposal> {
+    if(not(jcs:empty($ipsec-protocol))) { <protocol> $ipsec-protocol; }
+    if(not(jcs:empty($ipsec-authentication))) { <authentication-algorithm> $ipsec-authentication; }
+    if(not(jcs:empty($ipsec-encryption))) { <encryption-algorithm> $ipsec-encryption; }
+    if(not(jcs:empty($ipsec-lifetime))) { <lifetime-seconds> $ipsec-lifetime; }
+    if(not(jcs:empty($ipsec-lifesize))) { <lifetime-kilobytes> $ipsec-lifesize; }
+
+  }
+}
+
+/* Collect all current interface information */
+var $interfaces_rpc = { 
+  <get-configuration database="committed" inherit="inherit" > {
+    <configuration> {
+      <interfaces>; 
+    }
+  }
+}
+var $interfaces_res = jcs:invoke ( $interfaces_rpc );
+
+
+/* Collect all current group information */
+var $groups_rpc = { 
+  <get-configuration database="committed"> {
+    <configuration> {
+      <groups>; 
+    }
+  }
+}
+var $groups_res = jcs:invoke ( $groups_rpc );
+
+
+var $proxy-ids := { call get_proxy_id($local-ip-cache=$local-ip,$remote-ip-cache=$remote-ip); } 
+
+/* Main Template */
+match / {
+  <op-script-results> {
+    var $vpn-type = {
+      if ($type == "client") {
+        expr "cli";
+      }
+      else if ($type == "vendor") {
+        expr "vd";
+      }
+      else if ($type == "self") {
+        expr "teo";
+      }
+      else {
+        <xsl:message terminate="yes"> "type must be client, vendor, or self";
+      }
+    }
+    /* Get initial user input */
+    var $vpn-name-ans = teo:get-user-input($name, "VPN Name:");
+    var $peer-address-fin = teo:get-user-input($peer-address, "Peer Address:");
+
+    /* Round 1 of input validation */
+    if (jcs:empty(jcs:parse-ip($peer-address-fin))) {
+      var $message = "Peer Address '" _ $peer-address-fin _ "' is invalid.";
+      <xsl:message terminate="yes"> $message; 
+    }
+    var $vpn-name-raw = "vpn_" _ $vpn-type _ "_" _ $vpn-name-ans;
+    var $vpn-name = teo:to-lower-case( $vpn-name-raw );
+    var $vpn-id-raw = $peer-address-fin _ "_" _ $vpn-type _ "_" _ $vpn-name-ans;
+    var $vpn-id = teo:to-upper-case( $vpn-id-raw );
+
+    /* Ensure group does not exist */
+    if (not(jcs:empty($groups_res/groups[name==$vpn-name]))) {  
+      var $message = "Group '" _ $vpn-name _ "' already exists.";
+      <xsl:message terminate="yes"> $message;
+    }
+    /* Get additional user input */ 
+/*    var $proxy-ids := { call get_proxy_id($local-ip-cache=$local-ip,$remote-ip-cache=$remote-ip); } */ 
+
+    /* Find first available tunnel interface */
+    var $tunnel_int := {call tun_int_avail();}
+
+    var $policy-options := {call vpn-policy-options($vpn-name=$vpn-name, $tunnel_int=$tunnel_int);}
+    var $security-ike := {call vpn-security-ike($vpn-name=$vpn-name,$vpn-id=$vpn-id,$peer-address=$peer-address-fin,$ike-params=$ike-params);}
+    var $security-ipsec := {call vpn-security-ipsec($vpn-name=$vpn-name, $vpn-id=$vpn-id, $ipsec-params=$ipsec-params, $tunnel_int=$tunnel_int);}
+    var $config := {call vpn-group-config($vpn-id=$vpn-id,$vpn-name=$vpn-name,$policy-options=$policy-options,$security-ike=$security-ike, $security-ipsec=$security-ipsec, $tunnel_int=$tunnel_int);}
+    copy-of $security-ike;
+    copy-of $config;
+    var $conn_handle = jcs:open();
+    call jcs:load-configuration( $action=$load-action, $configuration=$config, $connection=$conn_handle);
+  }
+}
+
+
+/* Template to find next available tunnel interface within B2B range */
+/* template tun_int_avail ( $unit = $unit-base, $interfaces_res = $interfaces_res,  $tunnel-interface = $tunnel-interface ) { */
+template tun_int_avail ( $unit = $unit-base ) {
+  if (jcs:empty($interfaces_res/interfaces/interface[name==$tunnel-interface]/unit[name==$unit])) { 
+    <interfaces> {
+      <interface> {
+        <name> $tunnel-interface;
+        <unit> {
+          <name> $unit;
+          <family> {
+            <inet>;
+          }
+        }
+      }
+    }
+  }
+  else {
+    var $unit-run = $unit + 1;
+    if ($unit-run <= $unit-max) {
+      call tun_int_avail($unit = $unit + 1 );
+    }
+  } 
+}
+
+/* Template to collect proxy_id's */
+template get_proxy_id {
+  param $counter = 0;
+  param $local-ip-cache;
+  param $remote-ip-cache;
+
+  var $ans_default = "n";
+  var $local-ip-msg = "Local Prefix[" _ $local-ip-cache _ "]: ";
+  var $remote-ip-msg = "Remote Prefix[" _ $remote-ip-cache _ "]: ";
+  var $add-proxy-msg = "Would you like to add another[" _ $ans_default _ "]? ";
+  var $selector-name = "t" _ $counter;
+/*  if (not(jcs:empty($local-ip-cache)) && not(jcs:empty($remote-ip-cache)) && $counter == 0) { */
+  if (not(jcs:empty($local-ip-cache)) && not(jcs:empty($remote-ip-cache)) && $counter == 0) {
+    <traffic-selector> {
+      <name> $selector-name;
+      <local-ip> $local-ip-cache;
+      <remote-ip> $remote-ip-cache;
+    }
+  }
+  else {
+  var $local-ip = teo:get-ip-prefix($local-ip-msg, $local-ip-cache);
+  var $remote-ip = teo:get-ip-prefix($remote-ip-msg, $remote-ip-cache);
+  if ($local-ip != "" && $remote-ip != "") { 
+    <traffic-selector> {
+      <name> $selector-name;
+      <local-ip> $local-ip;
+      <remote-ip> $remote-ip;
+    } 
+    var $add_proxy = jcs:get-input($add-proxy-msg); 
+    if (($add_proxy == "y") || ($add_proxy == "yes")){
+      call get_proxy_id($counter = $counter + 1, $local-ip-cache = $local-ip, $remote-ip-cache = $remote-ip);
+    } 
+  }
+  else {
+  call get_proxy_id($counter = $counter, $local-ip-cache = $local-ip-cache, $remote-ip-cache = $remote-ip-cache);
+  }
+  }
+}
+
+template vpn-policy-options {
+  param $tunnel_int;
+  param $vpn-name;
+  var $tunnel_int_name = $tunnel_int/interfaces/interface/name _ "." _ $tunnel_int/interfaces/interface/unit/name;
+  <routing-instances> {
+    <instance> {
+      <name> $virtual-router;
+      <interface> {
+        <name> $tunnel_int_name;
+      }
+      <routing-options> {
+        <static> {
+          for-each ($proxy-ids/traffic-selector) {
+            <route> {
+              <name> ./remote-ip;
+              <next-hop> $tunnel_int_name;
+            }
+          }
+        }
+      }
+    }
+  }
+  <policy-options> {
+    <policy-statement> {
+      <name> $router-import-policy;
+/*      for-each ($proxy-ids/traffic-selector) { */
+      <term> {
+        var $number= jcs:printf( "%02d", position());
+        <name>$vpn-name _ $number;
+        <from> {
+          <instance>$virtual-router;
+          for-each ($proxy-ids/traffic-selector) {
+            <route-filter> {
+              <address> ./remote-ip;
+              <exact>;
+            }
+          }
+        }
+        <then> {
+          <accept>;
+        }
+      }
+    }
+  }
+}
+
+template vpn-security-ike {
+  param $vpn-name;
+  param $vpn-id;
+  param $ike-params;
+  param $peer-address;
+  var $ip_pattern = "[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}";
+  var $ike-policy-name = teo:to-upper-case($vpn-name);
+  var $interface = jcs:split("\\.", $external-interface);
+  var $external-address = jcs:regex($ip_pattern, $interfaces_res/interfaces/interface[name==$interface[1]]/unit[name==$interface[2]]/family/inet/address/name); 
+  var $ike-policy-base := {
+    <name> $ike-policy-name;
+    <mode> $mode;
+    <pre-shared-key> {
+      <ascii-text> $ike-params/pre-shared-key;
+    }
+  }
+  var $ike-gateway := {
+    <gateway> {
+      <name> $vpn-id;
+      <ike-policy> $ike-policy-name;
+      <address>$peer-address;
+      <dead-peer-detection> {
+        <interval> 10;
+        <threshold> 5;
+      }
+      <nat-keepalive> 5;
+      <local-identity> {
+        <inet> {
+          <identity-ipv4> $external-address;
+        }
+      }
+      <remote-identity> {
+        <inet> {
+          <identity-ipv4> $peer-address;
+        }
+      }
+      <external-interface> $external-interface;
+    }
+  }
+
+  var $ike-policy := {
+    if (jcs:empty($ike-params/proposal/*)) {
+      <policy> {
+        copy-of $ike-policy-base;
+        <proposal-set> $ike-proposal-set;
+      }
+    }
+    else {
+      var $proposal-name = $vpn-name _ "_phase1-proposal";
+      <policy> {
+        copy-of $ike-policy-base;
+        <proposals> $proposal-name;
+      }
+      <proposal> {
+        <name> $proposal-name;
+        <authentication-algorithm> teo:ans-selector($ike-proposal-def/authentication-algorithm[@default]/name,$ike-params/proposal/authentication-algorithm); 
+        <authentication-method> teo:ans-selector($ike-proposal-def/authentication-method[@default]/name,$ike-params/proposal/authentication-method);
+        <encryption-algorithm> teo:ans-selector($ike-proposal-def/encryption-algorithm[@default]/name,$ike-params/proposal/encryption-algorithm);
+        <dh-group> teo:ans-selector($ike-proposal-def/dh-group[@default]/name,$ike-params/proposal/dh-group);
+        <lifetime-seconds> teo:ans-selector($ike-proposal-def/lifetime-seconds,$ike-params/proposal/lifetime-seconds);
+      }
+    }
+  }
+  <ike> {
+    copy-of $ike-policy;
+    copy-of $ike-gateway;
+  }
+}
+
+template vpn-security-ipsec {
+  param $vpn-name;
+  param $vpn-id;
+  param $tunnel_int;
+  var $tunnel_int_name = $tunnel_int/interfaces/interface/name _ "." _ $tunnel_int/interfaces/interface/unit/name;
+
+
+/*  param $proxy-ids; */
+  var $proposal-name = $vpn-name _ "_phase2-proposal";
+  <zones> {
+    <security-zone> {
+      <name> $security-zone;
+      <interfaces> {
+        <name> $tunnel_int_name;
+      }
+    }
+  }
+  <ipsec> {
+    if (not(jcs:empty($ipsec-params/proposal/*))) {
+      <proposal> {
+        <name> $proposal-name;
+        <protocol> teo:ans-selector($ipsec-proposal-def/protocol[@default]/name,$ipsec-params/protocol);
+        <authentication-algorithm> teo:ans-selector($ipsec-proposal-def/authentication-algorithm[@default]/name,$ipsec-params/proposal/authentication-algorithm);
+        <encryption-algorithm> teo:ans-selector($ipsec-proposal-def/encryption-algorithm[@default]/name,$ipsec-params/proposal/encryption-algorithm); 
+        <lifetime-seconds> teo:ans-selector($ipsec-proposal-def/lifetime-seconds,$ipsec-params/proposal/lifetime-seconds);
+        <lifetime-kilobytes> teo:ans-selector($ipsec-proposal-def/lifetime-kilobytes,$ipsec-params/proposal/lifetime-kilobytes);
+      }
+    }
+    <policy> {
+      <name> $vpn-id;
+      if (not(jcs:empty($pfs-group))) {
+      <perfect-forward-secrecy> {
+        <keys> $pfs-group;
+      }
+      }
+      if (jcs:empty($ipsec-params/proposal/*)) {
+        <proposal-set> $ipsec-proposal-set;
+      } 
+      else {
+        <proposals> $proposal-name; 
+      }
+    } 
+    <vpn> {
+      <name> $vpn-id;
+      <bind-interface> $tunnel_int_name ;
+      <ike> {
+        <gateway> $vpn-id;
+        <idle-time> $ipsec-params/idle-time;
+        if (not(jcs:empty($no-anti-replay))) {
+        <no-anti-replay>; 
+        }
+        <ipsec-policy> $vpn-id ;
+        <install-interval> $ipsec-install-interval;
+      }
+      copy-of $proxy-ids;
+/*      for-each ($proxy-ids/traffic-selector) {
+        var $number= jcs:printf( "%02d", position());
+        <traffic-selector> {
+          <name> "t" _ $number;
+          <local-ip> ./local-ip;
+          <remote-ip> ./remote-ip;
+        }
+      } */
+    } 
+  }
+}
+
+template vpn-group-config {
+  param $vpn-name;
+  param $policy-options;
+  param $security-ike;
+  param $security-ipsec;
+  param $vpn-id;
+  param $tunnel_int;
+  var $tunnel-interface := $tunnel_int;
+  <configuration> {
+    <groups> {
+      <name> $vpn-name;
+      copy-of $tunnel_int;     /* Include tunnel interface */
+      copy-of $policy-options; /* Include policy-options */
+      <security> {
+        copy-of $security-ike;
+        copy-of $security-ipsec;
+      }
+    }
+  }
+}
+
+<func:function name="teo:to-upper-case"> {
+    param $string;
+    
+    var $upper-case = translate( $string, 'abcdefghijklmnopqrstuvwxyz.', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_' );
+    <func:result select="$upper-case">;
+}
+<func:function name="teo:to-lower-case"> {
+    param $string;
+    
+    var $upper-case = translate( $string, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ.', 'abcdefghijklmnopqrstuvwxyz_' );
+    <func:result select="$upper-case">;
+}
+<func:function name="teo:ans-selector"> {
+  param $default;
+  param $alternate;
+
+  var $ans-result = {
+    if (not(jcs:empty($alternate))) {
+      expr $alternate;
+    }
+    else {
+      expr $default;
+    }
+  }
+  <func:result select="$ans-result">;    
+}
+<func:function name="teo:get-ip-prefix"> {
+  param $message;
+  param $prefix-cache;
+
+  var $prefix-ans = jcs:get-input($message);
+  var $prefix = teo:ans-selector($prefix-cache, $prefix-ans); 
+  var $prefix-chk = jcs:parse-ip($prefix);
+  var $prefix-result = {
+    if (jcs:empty($prefix-chk)) {
+    <xsl:message > "Invalid IP Address";
+    expr teo:get-ip-prefix($message, $prefix-cache); 
+  }
+  else {
+      expr $prefix-chk[1];
+      if (not(jcs:empty($prefix-chk[3]))) {
+        expr "/" _ $prefix-chk[3];
+      }
+  }
+  }
+  <func:result select="$prefix-result">;
+}
+<func:function name="teo:get-user-input"> {
+      param $variable;
+      param $message;
+      var $input-result = {
+        if(jcs:empty($variable)) {
+          expr jcs:get-input($message);
+        }
+        else {
+          expr $variable;
+        }
+  }
+  <func:result select="$input-result">;
+}
