@@ -1,4 +1,4 @@
-version 1.1;
+version 1.0;
 
 ns junos = "http://xml.juniper.net/junos/*/junos";
 ns xnm = "http://xml.juniper.net/xnm/1.1/xnm";
@@ -57,7 +57,7 @@ var $ike-proposal-def := {
     <name> "sha-384" ;
   }
   <authentication-method default=true > { 
-    <name> "pre-shared-key"; 
+    <name> "pre-shared-keys"; 
   }
   <authentication-method> { 
     <name> "dsa-signatures"; 
